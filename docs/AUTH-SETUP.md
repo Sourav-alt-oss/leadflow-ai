@@ -1,0 +1,11 @@
+# LeadFlow AI account authentication (preview)
+This branch adds real email/password accounts using Firebase Authentication's official REST API, without introducing new npm packages. It does not replace the public fictional CRM or enable access to MongoDB. Do not publish the branch until authentication tests pass.
+
+## Setup
+1. Open Firebase console, select or create a Spark project. Enable Authentication, Email/Password sign-in (not email-link sign-in). Enable email enumeration protection and set a password policy of at least 12 characters.
+2. In Project settings / General, register a web app if necessary and obtain its Web API Key. Restrict the key to the Firebase Authentication API in Google Cloud as appropriate. Do not paste credentials into chat or commit them.
+3. Set FIREBASE_AUTH_API_KEY in .env.local for local testing. On Vercel, use a Preview environment variable scoped to feature/real-auth. No Firebase Hosting or Firestore required.
+4. Add the required app domains in Authentication settings / Authorized domains where applicable. Keep the default Firebase-hosted email action handler. Check verification/reset email templates.
+5. Redeploy the preview and test /auth/register, /auth/login, /auth/reset, /auth/resend and /account. Confirm an unverified account cannot sign in, direct access to /account without an account redirects, wrong passwords fail, logout blocks access, and expiry blocks access.
+
+The server sends credentials only to Google's official HTTPS Identity Toolkit endpoints. Firebase owns password storage. The app keeps a short-lived Firebase ID token in an HttpOnly SameSite=Lax cookie (Secure in production); the server checks account information with Firebase for each protected page. No refresh token is retained; reauthentication is required after up to 55 minutes. Sign-out clears the browser cookie, not all provider sessions. Do not treat this preview as a fully hardened production authentication system. Before enabling private CRM data, implement Firebase Admin SDK token/revocation verification, appropriate abuse protection and rate limiting, server-side permissions, per-user/workspace isolation, and automated security tests. Spark quotas apply.
