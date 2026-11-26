@@ -75,7 +75,7 @@ function useStore() {
         item.id,
       );
     });
-    toast.info("Record updated; check Atlas sync status");
+    toast.info("Record updated; check browser storage status");
   };
   const remove = (collection: Collection, row: RecordItem) => {
     if (!allowed) return;
