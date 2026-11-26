@@ -272,7 +272,7 @@ export function Workspace({ section }: { section: string }) {
         >
           <div className="card row between" role="status">
             <div>
-              <strong>Atlas: {atlasStatus}</strong>
+              <strong>Browser storage: {atlasStatus}</strong>
               <p className="muted">{atlasMessage}</p>
             </div>
             <div className="row">
@@ -283,7 +283,7 @@ export function Workspace({ section }: { section: string }) {
               )}
               {atlasStatus === "conflict" && (
                 <button className="btn" onClick={reloadAtlas}>
-                  Reload Atlas
+                  Reload demo
                 </button>
               )}
               <button className="btn" onClick={exportAtlasBackup}>
@@ -294,8 +294,8 @@ export function Workspace({ section }: { section: string }) {
           {!data ? (
             <div className="card" aria-busy={atlasStatus === "loading"}>
               {atlasStatus === "loading"
-                ? "Loading CRM records from Atlas…"
-                : "CRM unavailable. Check the Atlas status above."}
+                ? "Loading fictional demo records…"
+                : "CRM unavailable. Check the browser storage status above."}
             </div>
           ) : section === "dashboard" ? (
             <Dashboard />
@@ -319,7 +319,7 @@ export function Workspace({ section }: { section: string }) {
             <Records collection={section as Collection} />
           )}
           <small>
-            Interactive demo · fictional records · MongoDB Atlas persistence ·
+            Interactive demo · fictional records · Browser-local persistence ·
             single-user local demo, not multi-user collaboration.
           </small>
         </motion.main>
