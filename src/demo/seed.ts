@@ -1,0 +1,14 @@
+import { blank, day, leadStatuses, stages, sources, priorities, roles, type DemoState, type RecordItem } from './model';
+const names = ['Avery', 'Riley', 'Jordan', 'Morgan', 'Taylor', 'Casey', 'Parker', 'Skyler', 'Quinn', 'Cameron'];
+export function seed(): DemoState {
+    const make = (count: number, fn: (i: number) => RecordItem) => Array.from({ length: count }, (_, i) => fn(i));
+    const team = make(10, i => ({ ...blank(`u${i}`, `${names[i]} Demo`), status: roles[i % 4], email: `agent${i + 1}@example.com` }));
+    const companies = make(15, i => ({ ...blank(`c${i}`, `Fictional ${['Orbit', 'Nova', 'Vertex', 'Pixel', 'Atlas'][i % 5]} ${i + 1}`), industry: ['Technology', 'Retail', 'Services'][i % 3], website: `https://example.com`, location: ['Bhubaneswar', 'Pune', 'Bengaluru'][i % 3], size: ['1–10', '11–50', '51–200'][i % 3] }));
+    const leads = make(80, i => ({ ...blank(`l${i}`, `${names[i % 10]} Prospect ${i + 1}`), email: `lead${i + 1}@example.com`, companyId: `c${i % 15}`, ownerId: `u${i % 10}`, status: leadStatuses[i % 7], source: sources[i % 5], priority: priorities[i % 3], value: 25000 + i * 3100, date: day(i % 15 - 5), createdAt: day(-i), tags: i % 2 ? 'Inbound' : 'B2B' }));
+    const contacts = make(30, i => ({ ...blank(`p${i}`, `${names[i % 10]} Contact ${i + 1}`), email: `contact${i + 1}@example.com`, companyId: `c${i % 15}`, ownerId: `u${i % 10}` }));
+    const deals = make(25, i => ({ ...blank(`d${i}`, `Opportunity ${i + 1}`), companyId: `c${i % 15}`, ownerId: `u${i % 10}`, status: stages[i % 7], value: 50000 + i * 19000, probability: 20 + i % 7 * 10, priority: priorities[i % 3], date: day(i % 20), createdAt: day(-i * 3), relatedId: `l${i}` }));
+    const tasks = make(40, i => ({ ...blank(`t${i}`, `${['Follow up', 'Send proposal', 'Schedule call', 'Review account'][i % 4]} #${i + 1}`), ownerId: `u${i % 10}`, status: i % 4 === 0 ? 'Completed' : 'Open', date: day(i % 14 - 5), priority: priorities[i % 3], relatedId: `l${i % 80}` }));
+    const events = make(6, i => ({ ...blank(`e${i}`, `Demo meeting ${i + 1}`), date: day(i * 2) }));
+    const rules = ['New Lead Assignment', 'Follow-Up Reminders', 'Overdue Task Alerts', 'Lead Status Changes', 'Deal Won Notifications'].map((name, i) => ({ ...blank(`r${i}`, name), notes: 'Local simulation only', enabled: true }));
+    return { version: 1, leads, contacts, companies, deals, tasks, team, events, rules, activities: Array.from({ length: 30 }, (_, i) => ({ id: `a${i}`, message: `Sample activity: ${leads[i].name} reviewed`, date: new Date(Date.now() - i * 3600000).toISOString(), recordId: leads[i].id })), notifications: Array.from({ length: 15 }, (_, i) => ({ id: `n${i}`, message: `Sample follow-up: ${leads[i].name}`, date: new Date(Date.now() - i * 3600000).toISOString(), recordId: leads[i].id, read: i > 4 })) };
+}
