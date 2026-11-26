@@ -424,7 +424,7 @@ export function Settings() {
       <AnimatedCard>
         <h3>Reset demo data</h3>
         <p className="muted my-2">
-          Restore the fictional sample dataset in Atlas. This replaces all saved
+          Restore the fictional sample dataset in this browser. This replaces all saved
           CRM records. Export a backup first.
         </p>
         <button
@@ -433,7 +433,7 @@ export function Settings() {
           onClick={() => {
             if (
               confirm(
-                "Replace all Atlas CRM records with the original demo dataset?",
+                "Replace all browser demo records with the original fictional dataset?",
               )
             )
               reset();
