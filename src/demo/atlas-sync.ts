@@ -1,286 +1,81 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+
+import { useEffect, useState } from "react";
 import { stateSchema, type DemoState } from "./model";
 import { seed } from "./seed";
 
-const LEGACY = "leadflow-demo-v1";
-const PENDING = "leadflow-atlas-pending-v1";
-const API = "/api/crm-state";
-type Pending = { revision: number; state: DemoState };
+// Isolate fictional public demo data from the local Atlas workspace.
+const STORAGE_KEY = "leadflow-public-demo-v1";
 type Status = "loading" | "saved" | "saving" | "error" | "conflict";
-class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
-async function request(
-  method: "GET" | "PUT",
-  payload?: Pending,
-  signal?: AbortSignal,
-) {
-  const response = await fetch(API, {
-    method,
-    signal,
-    cache: "no-store",
-    ...(payload
-      ? {
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      : {}),
-  });
-  const result = await response.json();
-  if (!response.ok)
-    throw new ApiError(
-      result.error || "Atlas request failed.",
-      response.status,
-    );
-  return result as { revision: number; state?: DemoState | null };
-}
-function readPending(): Pending | null {
-  const raw = localStorage.getItem(PENDING);
-  if (!raw) return null;
-  const value = JSON.parse(raw);
-  if (!Number.isSafeInteger(value.revision) || value.revision < 1)
-    throw Error("Invalid pending backup revision.");
-  return { revision: value.revision, state: stateSchema.parse(value.state) };
-}
-function initialState() {
-  const raw = localStorage.getItem(LEGACY);
-  return raw === null ? seed() : stateSchema.parse(JSON.parse(raw));
-}
-function backup(pending: Pending) {
-  localStorage.setItem(PENDING, JSON.stringify(pending));
-}
-function clearPending() {
-  try {
-    localStorage.removeItem(PENDING);
-  } catch {
-    /* Storage unavailable. */
-  }
-}
-function same(a: DemoState, b: DemoState) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-function describe(error: unknown) {
-  return error instanceof Error ? error.message : "Atlas request failed.";
-}
 
 export function useAtlasData() {
   const [data, setData] = useState<DemoState | null>(null);
   const [status, setStatus] = useState<Status>("loading");
-  const [message, setMessage] = useState("Connecting to MongoDB Atlas…");
-  const session = useRef({
-    revision: 0,
-    confirmed: null as DemoState | null,
-    desired: null as DemoState | null,
-    busy: false,
-    blocked: false,
-  });
-  const alive = useRef(false);
-
-  const flush = useCallback(async () => {
-    const s = session.current;
-    if (
-      !alive.current ||
-      !s.revision ||
-      s.busy ||
-      s.blocked ||
-      !s.desired ||
-      s.desired === s.confirmed
-    )
-      return;
-    s.busy = true;
-    setStatus("saving");
-    setMessage("Saving changes to Atlas…");
-    try {
-      while (alive.current && s.desired && s.desired !== s.confirmed) {
-        const snapshot = s.desired;
-        // Save a recovery copy before the network request. If storage fails,
-        // do not silently proceed without the recovery copy.
-        backup({ revision: s.revision, state: snapshot });
-        const result = await request("PUT", {
-          revision: s.revision,
-          state: snapshot,
-        });
-        s.revision = result.revision;
-        s.confirmed = snapshot;
-      }
-      if (alive.current) {
-        clearPending();
-        setStatus("saved");
-        setMessage("All changes saved to MongoDB Atlas.");
-      }
-    } catch (error) {
-      if (alive.current) {
-        const conflict = error instanceof ApiError && error.status === 409;
-        s.blocked = conflict;
-        // Keep the latest unsaved state for recovery, including changes during the request.
-        try {
-          if (s.desired) backup({ revision: s.revision, state: s.desired });
-        } catch {
-          /* Export current state manually. */
-        }
-        setStatus(conflict ? "conflict" : "error");
-        setMessage(describe(error));
-      }
-    } finally {
-      s.busy = false;
-    }
-  }, []);
+  const [message, setMessage] = useState("Loading fictional demo records...");
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    alive.current = true;
-    const controller = new AbortController();
-    const { signal } = controller;
-    async function initialize() {
+    const frame = requestAnimationFrame(() => {
       try {
-        let remote = await request("GET", undefined, signal);
-        if (signal.aborted) return;
-        if (!remote.state) {
-          const imported = initialState();
-          try {
-            const inserted = await request(
-              "PUT",
-              { revision: 0, state: imported },
-              signal,
-            );
-            remote = { revision: inserted.revision, state: imported };
-          } catch (error) {
-            if (!(error instanceof ApiError && error.status === 409))
-              throw error;
-            remote = await request("GET", undefined, signal);
-          }
-        }
-        if (signal.aborted) return;
-        if (!remote.state || remote.revision < 1)
-          throw Error("Atlas workspace was not initialized.");
-        const state = stateSchema.parse(remote.state);
-        const pending = readPending();
-        const s = session.current;
-        s.revision = remote.revision;
-        s.confirmed = state;
-        s.desired = state;
-        s.blocked = false;
-        if (pending && !same(pending.state, state)) {
-          if (pending.revision !== remote.revision) {
-            s.blocked = true;
-            // Keep the unsaved copy visible and exportable. Do not overwrite Atlas.
-            setData(pending.state);
-            s.desired = pending.state;
-            setStatus("conflict");
-            setMessage(
-              "Unsaved browser changes conflict with Atlas. Export the pending JSON, then reload Atlas to discard the local copy.",
-            );
-            return;
-          }
-          s.desired = pending.state;
-          setData(pending.state);
-          setStatus("saving");
-          setMessage("Recovering unsaved changes…");
-          return;
-        }
-        clearPending();
-        setData(state);
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const initial = raw === null ? seed() : stateSchema.parse(JSON.parse(raw));
+        setData(initial);
         setStatus("saved");
-        setMessage("MongoDB Atlas connected.");
-      } catch (error) {
-        if (!signal.aborted) {
-          setStatus("error");
-          setMessage(describe(error));
-        }
+        setMessage("Public demo: records are stored in this browser only.");
+      } catch {
+        setStatus("error");
+        setMessage("Unable to load browser demo records. Check browser storage permissions.");
       }
-    }
-    void initialize();
-    return () => {
-      alive.current = false;
-      controller.abort();
-    };
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
     if (!data) return;
-    const s = session.current;
-    s.desired = data;
-    if (s.revision && data !== s.confirmed) {
-      // Persist the latest pending copy, even while another write is in flight.
-      // Defer state updates to the network callback; no synchronous setState here.
-      let cancelled = false;
-      queueMicrotask(() => {
-        const latest = s.desired;
-        if (cancelled || s.blocked || !latest || latest === s.confirmed) return;
-        try {
-          backup({ revision: s.revision, state: latest });
-        } catch {
-          setStatus("error");
-          setMessage(
-            "Cannot save the browser recovery copy. Export your current data.",
-          );
-          return;
-        }
-        void flush();
-      });
-      return () => {
-        cancelled = true;
-      };
+    let cancelled = false;
+    let saved = false;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      saved = true;
+    } catch {
+      // Leave the current data available for JSON export.
     }
-  }, [data, flush]);
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setStatus(saved ? "saved" : "error");
+      setMessage(saved
+        ? "Changes saved in this browser. Fictional demo only."
+        : "Unable to save browser data. Export a JSON backup.");
+    });
+    return () => { cancelled = true; };
+  }, [data, retryCount]);
 
-  useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => {
-      const s = session.current;
-      if (s.busy || (s.desired && s.desired !== s.confirmed)) {
-        event.preventDefault();
-        event.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, []);
-
-  function retry() {
-    if (session.current.revision) void flush();
+  function retryAtlas() {
+    if (data) setRetryCount((count) => count + 1);
     else window.location.reload();
   }
+
   function reloadAtlas() {
-    if (session.current.busy) return;
-    if (
-      window.confirm(
-        "Discard pending browser changes and reload the Atlas workspace? Export a backup first.",
-      )
-    ) {
-      clearPending();
-      session.current.desired = session.current.confirmed;
-      window.location.reload();
-    }
+    window.location.reload();
   }
+
   function exportAtlasBackup() {
-    try {
-      const payload =
-        session.current.desired ?? readPending()?.state ?? initialState();
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify(payload, null, 2)], {
-          type: "application/json",
-        }),
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "leadflow-crm-backup.json";
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (error) {
-      setMessage(describe(error));
-    }
+    if (!data) return;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "leadflow-crm-backup-demo.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+
   return {
     data,
     setData,
     atlasStatus: status,
     atlasMessage: message,
-    retryAtlas: retry,
+    retryAtlas,
     reloadAtlas,
     exportAtlasBackup,
   };
